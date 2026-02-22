@@ -1,12 +1,20 @@
 import chess
 import random
-from typing import Optional, Tuple, Dict
+import csv
+import os
+from typing import Optional, Tuple, Dict, List, Any
 
 class Game:
     """
-    Game orchestrates a match between two Player-like objects.
-    Expectation: player.get_move(fen) -> str (UCI), "__NO_MOVES__", or None.
-    Game is responsible for parsing/legality fallback counting.
+    Orchestrate a match between two Player-like objects.
+
+    play(...):
+        - verbose: existing behavior (prints board moves minimally)
+        - force_colors: None or (white_player, black_player)
+        - log_moves: if True, print a short line per ply and collect a move_log
+        - log_to_file: optional path to CSV file to append move records
+        - return_move_log: if True, returns (result, scores, fallbacks, move_log)
+                           else returns (result, scores, fallbacks)
     """
 
     def __init__(self, player_a, player_b, max_half_moves: int = 200):
@@ -15,63 +23,73 @@ class Game:
         self.max_half_moves = max_half_moves
 
     def _apply_move_with_fallback(self, board: chess.Board, move_str: Optional[str]) -> Tuple[str, bool]:
-        """
-        Try to apply move_str (UCI) to the board.
-        If move_str is None / invalid / illegal -> choose a random legal move and apply it.
-        Returns:
-            (applied_move_uci, was_fallback_used)
-        Note: "__NO_MOVES__" sentinel should be handled by caller (play).
-        """
         legal_moves = list(board.legal_moves)
         if not legal_moves:
-            # Terminal position — should be handled by caller before calling this
-            raise RuntimeError("No legal moves available on board (terminal).")
+            raise RuntimeError("No legal moves available")
 
-        # None or empty -> fallback
+        # None or empty -> fallback random legal
         if not move_str:
             fallback = random.choice(legal_moves)
             board.push(fallback)
             return fallback.uci(), True
 
-        # If the player returned a tuple accidentally, take the first element
-        if isinstance(move_str, tuple) and len(move_str) >= 1:
-            move_str = move_str[0]
-
-        # "__NO_MOVES__" sentinel — do not apply here (caller will react)
+        # sentinel handled by caller
         if move_str == "__NO_MOVES__":
             return "__NO_MOVES__", False
 
-        # Try parse UCI
+        # If move_str is a tuple like (move, flag) take first element
+        if isinstance(move_str, tuple) and len(move_str) >= 1:
+            move_str = move_str[0]
+
+        # parse UCI
         try:
             mv = chess.Move.from_uci(move_str)
         except Exception:
-            # parsing failed -> fallback
             fallback = random.choice(legal_moves)
             board.push(fallback)
             return fallback.uci(), True
 
-        # If parsed move not legal in this position -> fallback
+        # legality check
         if mv not in board.legal_moves:
             fallback = random.choice(legal_moves)
             board.push(fallback)
             return fallback.uci(), True
 
-        # Legal move -> push
+        # legal -> push
         board.push(mv)
         return mv.uci(), False
 
-    def play(self, verbose: bool = False, force_colors: Optional[Tuple] = None
-            ) -> Tuple[str, Dict[str, float], Dict[str, int]]:
+    def _write_csv_header_if_needed(self, path: str):
+        needs_header = not os.path.exists(path) or os.path.getsize(path) == 0
+        if needs_header:
+            with open(path, "a", newline="", encoding="utf-8") as fh:
+                writer = csv.writer(fh)
+                writer.writerow(["ply", "player", "role", "fen_before", "move", "fallback"])
+
+    def _append_move_to_csv(self, path: str, rec: Dict[str, Any]):
+        with open(path, "a", newline="", encoding="utf-8") as fh:
+            writer = csv.writer(fh)
+            writer.writerow([rec["ply"], rec["player"], rec["role"], rec["fen"], rec["move"], rec["fallback"]])
+
+    def play(
+        self,
+        verbose: bool = False,
+        force_colors: Optional[Tuple] = None,
+        log_moves: bool = False,
+        log_to_file: Optional[str] = None,
+        return_move_log: bool = False
+    ) -> Tuple[Any, Dict[str, float], Dict[str, int]]:
         """
-        Play a single game and return (result, scores, fallbacks)
-        - result: "1-0", "0-1", or "1/2-1/2"
-        - scores: {player_name: points}
-        - fallbacks: {player_name: fallback_count} (only game-level fallbacks)
+        Play a single game.
+
+        Returns:
+          - default: (result, scores, fallbacks)
+          - if return_move_log=True: (result, scores, fallbacks, move_log)
         """
 
         board = chess.Board()
 
-        # Determine white/black
+        # determine colors
         if force_colors:
             white, black = force_colors
         else:
@@ -79,8 +97,18 @@ class Game:
             random.shuffle(players)
             white, black = players
 
-        # initialize fallback counts (game-level)
+        # initialize
         fallbacks = {white.name: 0, black.name: 0}
+        move_log: List[Dict[str, Any]] = []
+
+        # prepare CSV header if requested
+        if log_to_file:
+            try:
+                self._write_csv_header_if_needed(log_to_file)
+            except Exception as e:
+                # don't fail the game for file issues; just warn
+                print(f"[Game] Warning: failed to prepare log file {log_to_file}: {e}")
+                log_to_file = None
 
         if verbose:
             print(f"White: {white.name}  vs  Black: {black.name}")
@@ -91,6 +119,7 @@ class Game:
                 break
 
             current = white if board.turn == chess.WHITE else black
+            role = "white" if current is white else "black"
             fen = board.fen()
 
             # ask player for move
@@ -101,52 +130,96 @@ class Game:
                     print(f"[{current.name}] get_move crashed: {e}")
                 mv_response = None
 
-            # normalize tuple return (legacy safety)
+            # normalize tuple or bare string
             if isinstance(mv_response, tuple) and len(mv_response) >= 1:
                 proposed_move = mv_response[0]
             else:
                 proposed_move = mv_response
 
-            # special sentinel: true terminal (engine says no moves)
+            # handle engine sentinel: immediate terminal
             if proposed_move == "__NO_MOVES__":
                 winner = black if current == white else white
                 if verbose:
-                    print(f"{current.name} reported __NO_MOVES__ -> immediate loss for {current.name}")
+                    print(f"{current.name} reported __NO_MOVES__ -> immediate loss")
                 scores = {self.player_a.name: 0.0, self.player_b.name: 0.0}
                 scores[winner.name] = 1.0
                 result = "1-0" if winner == white else "0-1"
-                return result, scores, fallbacks
+                # no move to log for this ply (engine claims no moves) — but we can still record it:
+                rec = {
+                    "ply": ply,
+                    "player": current.name,
+                    "role": role,
+                    "fen": fen,
+                    "move": "__NO_MOVES__",
+                    "fallback": False
+                }
+                move_log.append(rec)
+                if log_moves:
+                    print(f"PLY {ply:03d} | {current.name} | {role} | {fen} | {rec['move']} | fallback:{rec['fallback']}")
+                if log_to_file:
+                    try:
+                        self._append_move_to_csv(log_to_file, rec)
+                    except Exception:
+                        pass
+                if return_move_log:
+                    return result, scores, fallbacks, move_log
+                else:
+                    return result, scores, fallbacks
 
-            # apply move (Game-level fallback if needed)
+            # apply move (game-level fallback if needed)
             applied_move, parsing_fallback = self._apply_move_with_fallback(board, proposed_move)
 
+            # increment fallback counter only for parsing/legality fallback (game-level)
             if parsing_fallback:
                 fallbacks[current.name] += 1
 
-            if verbose:
-                print(f"PLY {ply:03d} | {current.name} plays {applied_move} {'(fallback)' if parsing_fallback else ''}")
-                print(board, "\n")
+            # record
+            rec = {
+                "ply": ply,
+                "player": current.name,
+                "role": role,
+                "fen": fen,
+                "move": applied_move,
+                "fallback": bool(parsing_fallback)
+            }
+            move_log.append(rec)
 
-        # game finished or max moves reached
-        raw_result = board.result()  # possible values: "1-0", "0-1", "1/2-1/2", or "*"
+            # print if requested
+            if log_moves:
+                print(f"PLY {ply:03d} | {current.name} | {role} | {fen} | {applied_move} | fallback:{parsing_fallback}")
+
+            # write to CSV
+            if log_to_file:
+                try:
+                    self._append_move_to_csv(log_to_file, rec)
+                except Exception:
+                    # ignore file write errors
+                    pass
+
+            if verbose:
+                # keep existing compact board print if verbose True
+                print(f"{current.name}: {applied_move}")
+
+        # final result mapping
+        raw_result = board.result()
         if raw_result == "*" or raw_result not in ["1-0", "0-1", "1/2-1/2"]:
             raw_result = "1/2-1/2"
 
-        # map to scores for the two players (use their names)
+        # map scores to player names (white/black)
         scores = {self.player_a.name: 0.0, self.player_b.name: 0.0}
         if raw_result == "1-0":
-            # white (the variable) won
             scores[white.name] = 1.0
-            scores[black.name] = 0.0
         elif raw_result == "0-1":
-            scores[white.name] = 0.0
             scores[black.name] = 1.0
         else:
             scores[white.name] = 0.5
             scores[black.name] = 0.5
 
-        if verbose:
+        if log_moves:
             print("Game finished:", raw_result)
             print("Fallback counts:", fallbacks)
+
+        if return_move_log:
+            return raw_result, scores, fallbacks, move_log
 
         return raw_result, scores, fallbacks

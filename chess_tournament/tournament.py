@@ -11,6 +11,86 @@ def instantiate_participant(desc):
 def destroy_instance(inst):
     raise NotImplementedError("Provide destroy_instance()")
 
+def round_robin_tournament(
+    players: List,
+    games_per_pair: int = 2,
+    verbose: bool = False,
+    engine_break: float = 3.0,
+    engine_break_jitter: float = 1.0,
+    max_half_moves: int = 150
+) -> Dict:
+    """
+    Round-robin: every unordered pair plays `games_per_pair` games.
+    Returns a summary dict with scores, games_played, fallbacks, leaderboard.
+    """
+
+    names = [p.name for p in players]
+    scores = {n: 0.0 for n in names}
+    fallbacks = {n: 0 for n in names}
+    games_played = {n: 0 for n in names}
+
+    n = len(players)
+    pairs = []
+    # build unordered pairs (i < j)
+    for i in range(n):
+        for j in range(i + 1, n):
+            pairs.append((players[i], players[j]))
+
+    total_matches = len(pairs) * games_per_pair
+    print(f"🏁 Round-robin: {len(players)} players, {len(pairs)} pairs, {games_per_pair} games/pair -> {total_matches} matches\n")
+
+    match_idx = 0
+    for p1, p2 in pairs:
+        for g in range(games_per_pair):
+            match_idx += 1
+            # alternate colors: even g -> p1 white, odd g -> p2 white
+            if g % 2 == 0:
+                white, black = p1, p2
+            else:
+                white, black = p2, p1
+
+            #if verbose:
+            print(f"> Match {match_idx}/{total_matches}: {white.name} (white) vs {black.name} (black) ... ", end="", flush=True)
+
+            game = Game(p1, p2, max_half_moves=max_half_moves)
+            result, match_scores, match_fallbacks = game.play(verbose=verbose, force_colors=(white, black))
+
+            # update stats
+            scores[p1.name] += match_scores[p1.name]
+            scores[p2.name] += match_scores[p2.name]
+            fallbacks[p1.name] += match_fallbacks[p1.name]
+            fallbacks[p2.name] += match_fallbacks[p2.name]
+            games_played[p1.name] += 1
+            games_played[p2.name] += 1
+
+            #if verbose:
+            print(f"Result: {result} | Scores: {match_scores} | Fallbacks: {match_fallbacks}")
+
+            # if engine involved, pause a bit
+            if isinstance(p1, EnginePlayer) or isinstance(p2, EnginePlayer):
+                pause = engine_break + random.uniform(0.0, engine_break_jitter)
+                if verbose:
+                    print(f"[pause] Waiting {pause:.2f}s before next match")
+                time.sleep(pause)
+
+    # leaderboard sort by points, then fewer fallbacks
+    def sort_key(nm):
+        return (-scores[nm], fallbacks[nm], random.random())
+
+    leaderboard = sorted(names, key=sort_key)
+
+    print("\n🏆 FINAL ROUND-ROBIN LEADERBOARD 🏆")
+    print("Rank | Name | Points | Games | Fallbacks")
+    for rank, name in enumerate(leaderboard, start=1):
+        print(f"{rank:>2} | {name:<15} | {scores[name]:>5.1f} | {games_played[name]:>5} | {fallbacks[name]:>8}")
+
+    return {
+        "scores": scores,
+        "games_played": games_played,
+        "fallbacks": fallbacks,
+        "leaderboard": leaderboard
+    }
+
 def swiss_tournament(
     participant_descs: List[Dict[str,Any]],
     instantiate_fn,
@@ -167,88 +247,3 @@ def run_tournament(player_a, player_b, n_games=4, verbose=False, max_half_moves=
         print(f"Wins: {stats['wins']}")
         print(f"Draws: {stats['draws']}")
         print(f"Fallbacks used: {stats['fallbacks']}")
-
-
-
-# -------------------------
-# Round-robin tournament
-# -------------------------
-def round_robin_tournament(
-    players: List,
-    games_per_pair: int = 2,
-    verbose: bool = False,
-    engine_break: float = 3.0,
-    engine_break_jitter: float = 1.0,
-    max_half_moves: int = 150
-) -> Dict:
-    """
-    Round-robin: every unordered pair plays `games_per_pair` games.
-    Returns a summary dict with scores, games_played, fallbacks, leaderboard.
-    """
-
-    names = [p.name for p in players]
-    scores = {n: 0.0 for n in names}
-    fallbacks = {n: 0 for n in names}
-    games_played = {n: 0 for n in names}
-
-    n = len(players)
-    pairs = []
-    # build unordered pairs (i < j)
-    for i in range(n):
-        for j in range(i + 1, n):
-            pairs.append((players[i], players[j]))
-
-    total_matches = len(pairs) * games_per_pair
-    print(f"🏁 Round-robin: {len(players)} players, {len(pairs)} pairs, {games_per_pair} games/pair -> {total_matches} matches\n")
-
-    match_idx = 0
-    for p1, p2 in pairs:
-        for g in range(games_per_pair):
-            match_idx += 1
-            # alternate colors: even g -> p1 white, odd g -> p2 white
-            if g % 2 == 0:
-                white, black = p1, p2
-            else:
-                white, black = p2, p1
-
-            #if verbose:
-            print(f"> Match {match_idx}/{total_matches}: {white.name} (white) vs {black.name} (black) ... ", end="", flush=True)
-
-            game = Game(p1, p2, max_half_moves=max_half_moves)
-            result, match_scores, match_fallbacks = game.play(verbose=verbose, force_colors=(white, black))
-
-            # update stats
-            scores[p1.name] += match_scores[p1.name]
-            scores[p2.name] += match_scores[p2.name]
-            fallbacks[p1.name] += match_fallbacks[p1.name]
-            fallbacks[p2.name] += match_fallbacks[p2.name]
-            games_played[p1.name] += 1
-            games_played[p2.name] += 1
-
-            #if verbose:
-            print(f"Result: {result} | Scores: {match_scores} | Fallbacks: {match_fallbacks}")
-
-            # if engine involved, pause a bit
-            if isinstance(p1, EnginePlayer) or isinstance(p2, EnginePlayer):
-                pause = engine_break + random.uniform(0.0, engine_break_jitter)
-                if verbose:
-                    print(f"[pause] Waiting {pause:.2f}s before next match")
-                time.sleep(pause)
-
-    # leaderboard sort by points, then fewer fallbacks
-    def sort_key(nm):
-        return (-scores[nm], fallbacks[nm], random.random())
-
-    leaderboard = sorted(names, key=sort_key)
-
-    print("\n🏆 FINAL ROUND-ROBIN LEADERBOARD 🏆")
-    print("Rank | Name | Points | Games | Fallbacks")
-    for rank, name in enumerate(leaderboard, start=1):
-        print(f"{rank:>2} | {name:<15} | {scores[name]:>5.1f} | {games_played[name]:>5} | {fallbacks[name]:>8}")
-
-    return {
-        "scores": scores,
-        "games_played": games_played,
-        "fallbacks": fallbacks,
-        "leaderboard": leaderboard
-    }

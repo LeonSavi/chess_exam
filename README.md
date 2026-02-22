@@ -19,6 +19,6 @@ Designed for:
 Clone the repo:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/chess-exam
-cd chess-tournament
+git clone https://github.com/bylinina/chess_exam.git
+cd chess-exam
 pip install -e .

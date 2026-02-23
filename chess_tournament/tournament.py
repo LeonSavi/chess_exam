@@ -193,6 +193,7 @@ def swiss_tournament(
 ):
     """
     Swiss tournament using PER-MATCH instantiation.
+    For odd participant counts, one player receives a 1-point bye each round.
 
     participant_descs : lightweight descriptors (students + baselines)
     instantiate_fn    : function(desc) -> Player instance
@@ -203,6 +204,7 @@ def swiss_tournament(
 
     scores = {n: 0.0 for n in names}
     fallbacks = {n: 0 for n in names}
+    byes = {n: 0 for n in names}
     opponents = {n: [] for n in names}
     past_pairs = set()
 
@@ -216,6 +218,19 @@ def swiss_tournament(
 
         used = set()
         round_pairings = []
+
+        # If odd number of participants, assign one bye:
+        # 1) never give a second bye until everyone has one
+        # 2) among eligible players, pick the lowest score
+        if len(names) % 2 == 1:
+            min_byes = min(byes.values())
+            bye_candidates = [n for n in names if byes[n] == min_byes]
+            bye_player = min(bye_candidates, key=lambda n: (scores[n], n))
+
+            used.add(bye_player)
+            byes[bye_player] += 1
+            scores[bye_player] += 1.0
+            print(f"Bye: {bye_player} (+1.0 point)")
 
         for i, p1 in enumerate(sorted_names):
             if p1 in used:
@@ -285,10 +300,11 @@ def swiss_tournament(
 
     print("\n🏆 FINAL LEADERBOARD 🏆")
     for rank, name in enumerate(leaderboard, start=1):
-        print(f"{rank:>2}. {name:<20}  {scores[name]:>5.1f} pts  | fallbacks {fallbacks[name]}")
+        print(f"{rank:>2}. {name:<20}  {scores[name]:>5.1f} pts  | byes {byes[name]} | fallbacks {fallbacks[name]}")
 
     return {
         "scores": scores,
+        "byes": byes,
         "fallbacks": fallbacks,
         "leaderboard": leaderboard
     }

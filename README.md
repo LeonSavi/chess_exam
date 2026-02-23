@@ -20,5 +20,6 @@ Clone the repo:
 
 ```bash
 git clone https://github.com/bylinina/chess_exam.git
-cd chess-exam
+cd chess_exam
 pip install -e .
+```

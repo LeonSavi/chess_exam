@@ -194,6 +194,11 @@ def swiss_tournament(
     """
     Swiss tournament using PER-MATCH instantiation.
     For odd participant counts, one player receives a 1-point bye each round.
+    Final ranking uses deterministic tie-breaks:
+      1) points (descending)
+      2) Buchholz (sum of faced-opponents' final scores, descending)
+      3) fallback count (ascending)
+      4) name (ascending)
 
     participant_descs : lightweight descriptors (students + baselines)
     instantiate_fn    : function(desc) -> Player instance
@@ -205,6 +210,9 @@ def swiss_tournament(
     scores = {n: 0.0 for n in names}
     fallbacks = {n: 0 for n in names}
     byes = {n: 0 for n in names}
+    # Track opponents once per pairing-round (not per game).
+    # Using a list keeps round-level history and allows rematches (if any) to
+    # contribute again to Buchholz, which matches per-round semantics.
     opponents = {n: [] for n in names}
     past_pairs = set()
 
@@ -264,6 +272,11 @@ def swiss_tournament(
             desc1 = next(d for d in participant_descs if d["name"] == p1_name)
             desc2 = next(d for d in participant_descs if d["name"] == p2_name)
 
+            # Record this head-to-head once per pairing instead of once per game.
+            # This prevents overweighting multi-game pairings in Buchholz.
+            opponents[p1_name].append(p2_name)
+            opponents[p2_name].append(p1_name)
+
             for game_idx in range(games_per_pairing):
 
                 print(f"> {p1_name} vs {p2_name} (game {game_idx+1}) ... ", end="")
@@ -284,28 +297,36 @@ def swiss_tournament(
                 fallbacks[p1_name] += match_fallbacks[p1_name]
                 fallbacks[p2_name] += match_fallbacks[p2_name]
 
-                opponents[p1_name].append(p2_name)
-                opponents[p2_name].append(p1_name)
-
                 print(f"{result}")
 
                 if engine_break > 0:
                     time.sleep(engine_break)
 
+    # Buchholz = sum of final scores of opponents faced per round.
+    # Opponents are tracked at pairing-level, so games_per_pairing does not
+    # inflate Buchholz; rematches across rounds (if forced) are counted again.
+    buchholz = {n: sum(scores[opp] for opp in opponents[n]) for n in names}
+
     # ---- FINAL SORT ----
     leaderboard = sorted(
         names,
-        key=lambda n: (-scores[n], fallbacks[n], random.random())
+        key=lambda n: (-scores[n], -buchholz[n], fallbacks[n], n)
     )
 
     print("\n🏆 FINAL LEADERBOARD 🏆")
     for rank, name in enumerate(leaderboard, start=1):
-        print(f"{rank:>2}. {name:<20}  {scores[name]:>5.1f} pts  | byes {byes[name]} | fallbacks {fallbacks[name]}")
+        print(
+            f"{rank:>2}. {name:<20}  {scores[name]:>5.1f} pts"
+            f" | buchholz {buchholz[name]:>5.1f}"
+            f" | byes {byes[name]} | fallbacks {fallbacks[name]}"
+        )
 
     return {
         "scores": scores,
         "byes": byes,
         "fallbacks": fallbacks,
+        "buchholz": buchholz,
+        "opponents": {n: list(opponents[n]) for n in names},
         "leaderboard": leaderboard
     }
     

@@ -20,11 +20,9 @@ class TransformerPlayer(Player):
         weights_path = hf_hub_download(repo_id=repo_id, filename="TransformerGodPlayer.pth")
         configs = hf_hub_download(repo_id=repo_id, filename="opt-configs.yml")
 
-        # 2. LOAD SETTINGS
         with open(configs, 'r') as file:
             settings = yaml.safe_load(file)
 
-        # 3. INITIALIZE ARCHITECTURE
         self.model = Transformer(
             src_vocab_size=self.tokenizer.vocab_size,
             tgt_vocab_size=self.tokenizer.vocab_size,
@@ -36,7 +34,6 @@ class TransformerPlayer(Player):
             dropout=settings['dropout']
         ).to(self.device)
 
-        # 4. LOAD WEIGHTS
         self.model.load_state_dict(torch.load(weights_path, map_location=self.device))
         self.model.eval() 
 

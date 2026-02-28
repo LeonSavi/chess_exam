@@ -15,8 +15,8 @@ from scripts.utils import YMLstudy
 
 DATA_ROOT = 'data'
 CSV_FILE = 'chess_moves_sample'
-N_TRIALS = 2
-TRIAL_EPOCHS = 3
+N_TRIALS = 50
+TRIAL_EPOCHS = 5
 
 SEED = 1
 
@@ -37,7 +37,6 @@ def calculate_metrics(model, loader, criterion, device):
 
 
 def objective(trial):
-    # 1. SUGGEST PARAMETERS
     d_model = trial.suggest_categorical("d_model", [32, 64, 128, 256])
     num_heads = trial.suggest_categorical("num_heads", [2, 4, 8])
     num_layers = trial.suggest_int("num_layers", 2, 6)

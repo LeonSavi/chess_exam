@@ -29,11 +29,21 @@ class TransformerPlayer(Player):
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = ChessTokenizer()
 
-        weights_path = hf_hub_download(repo_id=repo_id, filename="TransformerGodPlayer.pth")
-        configs = hf_hub_download(repo_id=repo_id, filename="opt-configs.yml")
+        try:
+            with open("opt-configs.yml", 'r') as file:
+                settings = yaml.safe_load(file)
+        except:
+            configs = hf_hub_download(repo_id=repo_id, filename="opt-configs.yml")
+            with open(configs, 'r') as file:
+                settings = yaml.safe_load(file)
 
-        with open(configs, 'r') as file:
-            settings = yaml.safe_load(file)
+        weights_filename = "TransformerGodPlayer.pth"
+        local_weights = os.path.join(current_dir, 'model/'+weights_filename)
+
+        if os.path.exists(local_weights):
+            weights_path = local_weights
+        else:
+            weights_path = hf_hub_download(repo_id=repo_id, filename=f"{weights_filename}")
 
         self.model = Transformer(
             src_vocab_size=self.tokenizer.vocab_size,

@@ -2,5 +2,5 @@
 .venv
 trans_venv
 api.py
-*.pth
+# *.pth
 looker.ipynb

@@ -4,3 +4,4 @@ trans_venv
 api.py
 # *.pth
 looker.ipynb
+/test_file/

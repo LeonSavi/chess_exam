@@ -32,6 +32,7 @@ class TransformerPlayer(Player):
         try:
             with open("opt-configs.yml", 'r') as file:
                 settings = yaml.safe_load(file)
+            print(settings)
         except:
             configs = hf_hub_download(repo_id=repo_id, filename="opt-configs.yml")
             with open(configs, 'r') as file:
@@ -42,6 +43,7 @@ class TransformerPlayer(Player):
 
         if os.path.exists(local_weights):
             weights_path = local_weights
+            print(weights_path)
         else:
             weights_path = hf_hub_download(repo_id=repo_id, filename=f"{weights_filename}")
 

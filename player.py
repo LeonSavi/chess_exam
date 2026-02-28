@@ -1,11 +1,23 @@
 import os
 import yaml
 import torch
-from huggingface_hub import hf_hub_download # New Import
+from huggingface_hub import hf_hub_download
 
 from chess_tournament.players import Player
+
+import sys
+import os
+
+# Get the directory where player.py is actually located
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Add that directory to the Python path so it can see the 'scripts' folder
+if current_dir not in sys.path:
+    sys.path.insert(0, current_dir)
+
 from scripts.tokenizer import ChessTokenizer
-from scripts.architecture import Transformer # Ensure this is imported
+from scripts.architecture import Transformer
+
 
 class TransformerPlayer(Player):
     def __init__(self,

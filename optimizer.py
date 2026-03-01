@@ -16,7 +16,7 @@ from scripts.utils import YMLstudy
 DATA_ROOT = 'data'
 CSV_FILE = 'chess_moves_sample'
 N_TRIALS = 50
-TRIAL_EPOCHS = 5
+TRIAL_EPOCHS = 15
 
 SEED = 1
 

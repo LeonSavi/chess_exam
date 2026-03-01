@@ -13,7 +13,7 @@ from api import RAPID_API
 
 ROOT = 'data'
 max_concurrent_games = 20
-num_games_total = 10000-235-154-192-544
+num_games_total = 10000-235-154-192-544-343
 
 os.makedirs(ROOT, exist_ok=True)
 
@@ -61,7 +61,7 @@ def play_single_game(game_id, num_games_total):
     else:
         w,b = opponent,main_player
         
-    game = Game(w, b, max_half_moves=500)
+    game = Game(w, b, max_half_moves=700)
 
     game.play(
         verbose=False, 

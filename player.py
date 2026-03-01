@@ -7,11 +7,12 @@ from chess_tournament.players import Player
 
 import sys
 import os
+import chess
 
-# Get the directory where player.py is actually located
+import random
+
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
-# Add that directory to the Python path so it can see the 'scripts' folder
 if current_dir not in sys.path:
     sys.path.insert(0, current_dir)
 
@@ -66,6 +67,7 @@ class TransformerPlayer(Player):
         self.model.eval() 
 
     def get_move(self, fen: str) -> str:
+        board = chess.Board(fen)
         encoded_fen = self.tokenizer.encode(fen, is_target=False)
         src_tensor = torch.tensor(encoded_fen, dtype=torch.long).unsqueeze(0).to(self.device)
         
@@ -83,4 +85,13 @@ class TransformerPlayer(Player):
                     break
                     
         predicted_move = self.tokenizer.decode(target_tokens)
-        return predicted_move if predicted_move else "0000"
+
+        try:
+            move = chess.Move.from_uci(predicted_move)
+            if move in board.legal_moves:
+                return move.uci()
+        except:
+            pass
+
+        print(f"⚠️ {self.name} predicted illegal move {predicted_move}. Falling back to random.")
+        return random.choice([m.uci() for m in board.legal_moves])

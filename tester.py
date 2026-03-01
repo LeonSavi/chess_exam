@@ -1,6 +1,6 @@
 import chess
 import random
-from scripts.player import TransformerPlayer
+from player import TransformerPlayer
 
 class RandomPlayer:
     """The 'Stupid AI' - plays completely random legal moves."""

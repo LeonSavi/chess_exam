@@ -9,6 +9,9 @@ from scripts.architecture import Transformer
 from scripts.tokenizer import ChessTokenizer
 from scripts.dataset import ChessDataset
 
+import pandas as pd
+from datasets import load_dataset
+
 from huggingface_hub import HfApi, login
 
 from api import HF_TOKEN
@@ -19,12 +22,23 @@ REPO_ID = 'LeoSavi/Chess-God-Transformer'
 DATA_ROOT = 'data'
 MODEL_DIR = 'model'
 
-SAVE_PATH = os.path.join(MODEL_DIR, "TransformerPlayer.pth")
+NAME_MODEL = "TransformerGodPlayer.pth"
+
+SAVE_PATH = os.path.join(MODEL_DIR, NAME_MODEL)
 OPTUNA_PATH = "opt-configs.yml"
 
-EPOCHS = 50
+EPOCHS = 80
 
-os.makedirs(MODEL_DIR, exist_ok=True) 
+os.makedirs(MODEL_DIR, exist_ok=True)
+
+# for data integration
+tactics_dataset = pd.DataFrame(load_dataset("ssingh22/chess-evaluations", "tactics"
+                               )['train']).rename(columns={'FEN':'fen_before','Move':'move'})
+
+hf_dataset = pd.DataFrame(load_dataset("bonna46/Chess-FEN-and-NL-Format-30K-Dataset"
+                                       )['train']).rename(columns={'FEN':'fen_before','Next move':'move'})
+
+hf_data = pd.concat([tactics_dataset,hf_dataset],axis=0,ignore_index=True).reset_index(drop=True)
 
 def train_final_model():
 
@@ -34,7 +48,7 @@ def train_final_model():
         config = yaml.safe_load(file)
 
     tokenizer = ChessTokenizer()
-    dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv", tokenizer)
+    dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv", hf_data, tokenizer)
     
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
@@ -109,13 +123,15 @@ def load_to_hf():
     api.upload_file(
         path_or_fileobj=SAVE_PATH,
         path_in_repo="TransformerGodPlayer.pth",
-        repo_id=REPO_ID
+        repo_id=REPO_ID,
+        commit_message="Update model"
     )
 
     api.upload_file(
         path_or_fileobj=OPTUNA_PATH,
-        path_in_repo=OPTUNA_PATH,
-        repo_id=REPO_ID
+        path_in_repo="opt-configs.yml",
+        repo_id=REPO_ID,
+        commit_message="Update Hypers"
     )
 
 if __name__ == "__main__":

@@ -1,7 +1,8 @@
 # tokenizer.py
 class ChessTokenizer:
-    def __init__(self):
-        chars =  "abcdefgh0123456789prnqkPRNBQK/- w" 
+    def __init__(self,
+                 chars =  "abcdefgh0123456789prnqkPRNBQK/- w"):
+                 
         self.char_to_int = {"<PAD>": 0, "<START>": 1, "<END>": 2}
         self.int_to_char = {0: "<PAD>", 1: "<START>", 2: "<END>"}
         

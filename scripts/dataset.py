@@ -11,18 +11,23 @@ class ChessDataset(Dataset):
             tokenizer,
             max_fen_len=90,
             max_move_len=7,
-            players = ['Stockfish-GM','Stockfish-Strong']):
-
+            sample_frac:float = None):
+        
         self.data = pd.read_csv(csv_file)
 
         self.ref_col = ['fen_before','move']
         
+        players = ['Stockfish-GM','Stockfish-Strong']
+
         self.data = self.data[
              (self.data['player'].isin(players)) & 
             (self.data['fallback'] == False)
         ]
 
         self._add_hf_data(hf_data)
+
+        if sample_frac:
+            self.data = self.data.sample(frac=sample_frac,random_state=1)
         
         self.tokenizer = tokenizer
         self.max_fen_len = max_fen_len

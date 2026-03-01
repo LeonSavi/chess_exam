@@ -47,6 +47,7 @@ def train_final_model():
     with open(OPTUNA_PATH, 'r') as file:
         config = yaml.safe_load(file)
 
+
     tokenizer = ChessTokenizer()
     dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv", hf_data, tokenizer)
     
@@ -85,7 +86,6 @@ def train_final_model():
             optimizer.zero_grad()
             output = model(src, tgt_input)
             
-            # Using output.size(-1) to perfectly match dimensions
             loss = criterion(output.reshape(-1, output.size(-1)), tgt_expected.reshape(-1))
             loss.backward()
             optimizer.step()

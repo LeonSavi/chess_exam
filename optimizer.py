@@ -17,9 +17,9 @@ from scripts.dataset import ChessDataset
 from scripts.utils import YMLstudy
 
 DATA_ROOT = 'data'
-CSV_FILE = 'chess_moves_sample'
-N_TRIALS = 50
-TRIAL_EPOCHS = 15
+CSV_FILE = 'chess_moves'
+N_TRIALS = 6
+TRIAL_EPOCHS = 10
 
 SEED = 1
 
@@ -36,8 +36,9 @@ hf_dataset = pd.DataFrame(load_dataset("bonna46/Chess-FEN-and-NL-Format-30K-Data
 
 hf_data = pd.concat([tactics_dataset,hf_dataset],axis=0,ignore_index=True).reset_index(drop=True)
 
-full_dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv",hf_data, tokenizer)
-    
+full_dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv",hf_data, tokenizer, sample_frac=0.01)# semple_frac it takes a sample
+
+print(f'dataset sampled - n rows: {len(full_dataset)}')
 
 def calculate_loss(model, loader, criterion, device):
     model.eval()
@@ -56,11 +57,15 @@ def objective(trial):
     d_model = trial.suggest_categorical("d_model", [64, 128, 256])
     num_heads = trial.suggest_categorical("num_heads", [4, 8])
     num_layers = trial.suggest_int("num_layers", 3, 6)
-    d_ff = trial.suggest_categorical("d_ff", [d_model*4])
+
+    d_ff = d_model*4
+
     dropout = trial.suggest_float("dropout", 0.1, 0.3)
     lr = trial.suggest_float("lr", 1e-4, 1e-3, log=True)
     batch_size = trial.suggest_categorical("batch_size", [128, 256, 512, 1024])
     
+    trial.set_user_attr("d_ff", d_ff)
+
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     train_size = int(0.8 * len(full_dataset))
@@ -77,7 +82,7 @@ def objective(trial):
         d_model=d_model,
         num_heads=num_heads,
         num_layers=num_layers,
-        d_ff=d_ff,
+        d_ff=d_ff*4,
         max_seq_length=100,
         dropout=dropout
     ).to(device)

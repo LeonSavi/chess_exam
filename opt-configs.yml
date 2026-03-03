@@ -1,7 +1,7 @@
-d_model: 128      # Still small/fast, but gives 16-dim heads (much easier to learn)
-num_heads: 8      # 128 / 8 = 16. (Assertion: 128 % 8 == 0 ✅)
-num_layers: 4     # One extra layer for "depth of thought"
-d_ff: 512         # Perfect 4x ratio (Standard Transformer math)
-dropout: 0.1      # Lowered because you have more data now (40k vs 13k)
-lr: 0.0003        # Slightly faster; with 128-dim, gradients are more stable
-batch_size: 128   # Better for GPU utilization and gradient averaging
+d_model: 128      
+num_heads: 8      
+num_layers: 3     
+d_ff: 512         
+dropout: 0.1      
+lr: 0.0003        
+batch_size: 128 

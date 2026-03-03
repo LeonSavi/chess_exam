@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader, random_split
 from scripts.architecture import Transformer
 from scripts.tokenizer import ChessTokenizer
 from scripts.dataset import ChessDataset
+from scripts.utils import parse_eval
 
 import pandas as pd
 from datasets import load_dataset
@@ -27,13 +28,26 @@ NAME_MODEL = "TransformerGodPlayer.pth"
 SAVE_PATH = os.path.join(MODEL_DIR, NAME_MODEL)
 OPTUNA_PATH = "opt-configs.yml"
 
-EPOCHS = 80
+EPOCHS = 30
+
+SHARE = 0.2
 
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # for data integration
-tactics_dataset = pd.DataFrame(load_dataset("ssingh22/chess-evaluations", "tactics"
-                               )['train']).rename(columns={'FEN':'fen_before','Move':'move'})
+
+pre_tactics_dataset = pd.DataFrame(load_dataset("ssingh22/chess-evaluations", "tactics"
+                               )['train'])
+
+pre_tactics_dataset['eval_num'] = pre_tactics_dataset['Evaluation'].apply(parse_eval)
+
+white = pre_tactics_dataset[pre_tactics_dataset['eval_num']>0].copy()
+black = pre_tactics_dataset[pre_tactics_dataset['eval_num']<0].copy()
+
+target = int(min(len(white)*SHARE,len(black)*SHARE))
+white,black = white.sample(n=target,random_state=1),black.sample(n=target,random_state=1)
+
+tactics_dataset =  pd.concat([white,black],ignore_index=True).reset_index(drop=True).rename(columns={'FEN':'fen_before','Move':'move'})
 
 hf_dataset = pd.DataFrame(load_dataset("bonna46/Chess-FEN-and-NL-Format-30K-Dataset"
                                        )['train']).rename(columns={'FEN':'fen_before','Next move':'move'})

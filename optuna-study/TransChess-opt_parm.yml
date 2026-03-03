@@ -1,25 +1,56 @@
 best_trials:
 - trial_number: 0
   values:
-  - 1.2915
-  - 0.0057
+  - 1.5033
+  - 0.0007
   params:
-    d_model: 64
-    num_heads: 8
+    d_model: 128
+    num_heads: 4
     num_layers: 3
-    d_ff: 256
-    dropout: 0.30556585011902787
-    lr: 0.00022251446048745507
-    batch_size: 64
+    dropout: 0.13725204227553417
+    lr: 0.0002215953929680393
+    batch_size: 1024
 - trial_number: 1
   values:
-  - 1.6446
-  - 0.0051
+  - 1.3747
+  - 0.0155
   params:
-    d_model: 256
-    num_heads: 2
-    num_layers: 6
-    d_ff: 128
-    dropout: 0.15094912586937068
-    lr: 0.0031041147884928607
+    d_model: 128
+    num_heads: 4
+    num_layers: 5
+    dropout: 0.12807738771904675
+    lr: 0.00015779799804245754
     batch_size: 256
+- trial_number: 2
+  values:
+  - 1.4478
+  - 0.0089
+  params:
+    d_model: 128
+    num_heads: 8
+    num_layers: 6
+    dropout: 0.11966936676661002
+    lr: 0.0002636984791176975
+    batch_size: 128
+- trial_number: 3
+  values:
+  - 1.4901
+  - 0.0033
+  params:
+    d_model: 128
+    num_heads: 8
+    num_layers: 5
+    dropout: 0.15608879841288104
+    lr: 0.0006155726679200637
+    batch_size: 512
+- trial_number: 4
+  values:
+  - 1.7558
+  - 0.0003
+  params:
+    d_model: 64
+    num_heads: 4
+    num_layers: 4
+    dropout: 0.19831463185606765
+    lr: 0.00011307394518873966
+    batch_size: 1024

@@ -98,3 +98,14 @@ class YMLstudy():
             self.best_parameters = best_trial["params"]
             self.results = best_trial["values"]
             self.results_sum = sum(best_trial["values"])
+
+
+
+def parse_eval(e):
+    '''For tactics dataset, remove unecessary data'''
+    if isinstance(e, str) and '#' in e:
+        return 10000 if '+' in e else -10000
+    try:
+        return float(e)
+    except:
+        return 0

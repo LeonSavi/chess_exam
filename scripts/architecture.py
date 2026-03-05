@@ -34,7 +34,7 @@ class MultiHeadAttention(nn.Module):
         
         # Apply mask if provided (useful for preventing attention to certain parts like padding)
         if mask is not None:
-            attn_scores = attn_scores.masked_fill(mask == 0, -1e9)
+            attn_scores = attn_scores.masked_fill(mask == 0, -1e4) # LS: CHANGED FROM -1e9 FOR quantization
         
         # Softmax is applied to obtain attention probabilities
         attn_probs = torch.softmax(attn_scores, dim=-1)

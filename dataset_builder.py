@@ -12,8 +12,8 @@ from chess_tournament.players import EnginePlayer, RandomPlayer
 from api import RAPID_API
 
 ROOT = 'data'
-max_concurrent_games = 20
-num_games_total = 10000-235-154-192-544-343
+max_concurrent_games = 100
+num_games_total = 1000
 
 os.makedirs(ROOT, exist_ok=True)
 
@@ -24,13 +24,13 @@ if "RAPIDAPI_KEY" not in os.environ:
     os.environ["RAPIDAPI_KEY"] = RAPID_API
 
 good_players = [
-    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.0),
-    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.1)
+    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.6),
+    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.8)
     ]
 
 pool_of_players = [
-    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.1),
-    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.15),
+    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.2),
+    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.3),
 
     EnginePlayer("Stockfish-GM", blunder_rate=0.01, ponder_rate=0.15),
     EnginePlayer("Stockfish-Strong", blunder_rate=0.05, ponder_rate=0.2),
@@ -41,7 +41,8 @@ pool_of_players = [
     EnginePlayer("Stockfish-Mid", blunder_rate=0.15, ponder_rate=0.4),
     EnginePlayer("Stockfish-Weak", blunder_rate=0.3, ponder_rate=0.7),
 
-    RandomPlayer("Chaos-Bot")
+    EnginePlayer("Stockfish-Mid", blunder_rate=0.0, ponder_rate=0.1),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.0, ponder_rate=0.1)
     ]
 
 

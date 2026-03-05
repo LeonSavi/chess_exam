@@ -6,28 +6,33 @@ from torch.utils.data import Dataset
 
 class ChessDataset(Dataset):
     def __init__(self,
-            csv_file,
-            hf_data,
-            tokenizer,
+            csv_file = None,
+            hf_data = None,
+            tokenizer = None,
             max_fen_len=90,
             max_move_len=7,
             sample_frac:float = None):
         
-        self.data = pd.read_csv(csv_file)
 
         self.ref_col = ['fen_before','move']
         
-        players = ['Stockfish-GM','Stockfish-Strong']
+        if csv_file:
+            self.data = pd.read_csv(csv_file)
 
-        self.data = self.data[
-             (self.data['player'].isin(players)) & 
-            (self.data['fallback'] == False)
-        ]
+            players = ['Stockfish-GM','Stockfish-Strong']
+
+            self.data = self.data[
+                (self.data['player'].isin(players)) & 
+                (self.data['fallback'] == False)
+            ]
+
+            if sample_frac:
+                self.data = self.data.sample(frac=sample_frac,random_state=1)
+        
+        else:
+            self.data =  pd.DataFrame(columns=self.ref_col)
 
         self._add_hf_data(hf_data)
-
-        if sample_frac:
-            self.data = self.data.sample(frac=sample_frac,random_state=1)
         
         self.tokenizer = tokenizer
         self.max_fen_len = max_fen_len
@@ -54,9 +59,17 @@ class ChessDataset(Dataset):
     
     def _add_hf_data(self,hf_data):
 
-        self.data = pd.concat(
-            [self.data[self.ref_col],hf_data[self.ref_col]],
-            axis=0,
-            ignore_index=True
-            ).drop_duplicates(
-            ).reset_index(drop=True)
+        if len(self.data)>0:
+            to_concat = [self.data[self.ref_col],hf_data[self.ref_col]]
+
+            self.data = pd.concat(
+                to_concat,
+                axis=0,
+                ignore_index=True
+                ).drop_duplicates(
+                ).reset_index(drop=True)
+        else:
+            self.data = hf_data[self.ref_col
+                                ].drop_duplicates().reset_index(drop=True)
+
+

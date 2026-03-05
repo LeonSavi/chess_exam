@@ -23,9 +23,12 @@ from scripts.architecture import Transformer
 class TransformerPlayer(Player):
     def __init__(self,
                  name="TransformerGodPlayer",
-                 repo_id="LeoSavi/Chess-God-Transformer"): 
+                 repo_id="LeoSavi/Chess-God-Transformer",
+                 temperature = 0.8): 
 
         super().__init__(name)
+
+        self.temperature = temperature
         
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.tokenizer = ChessTokenizer()
@@ -41,7 +44,7 @@ class TransformerPlayer(Player):
             with open(config_path, 'r') as file:
                 settings = yaml.safe_load(file)
 
-        weights_filename = "TransformerGodPlayer.pth"
+        weights_filename = f"{name}.pth"
         local_weights_option1 = os.path.join(current_dir, 'model', weights_filename)
         local_weights_option2 = os.path.join(current_dir, weights_filename)
 
@@ -78,11 +81,18 @@ class TransformerPlayer(Player):
             for _ in range(max_move_len):
                 tgt_tensor = torch.tensor(target_tokens, dtype=torch.long).unsqueeze(0).to(self.device)
                 output = self.model(src_tensor, tgt_tensor)
+                
                 next_token_logits = output[0, -1, :] 
-                next_token = next_token_logits.argmax().item()
-                target_tokens.append(next_token)
+                scaled_logits = next_token_logits / self.temperature
+                probs = torch.softmax(scaled_logits, dim=-1)
+                
+                next_token = torch.multinomial(probs, num_samples=1).item()
+                
                 if next_token == 2:
                     break
+                
+                target_tokens.append(next_token)
+
                     
         predicted_move = self.tokenizer.decode(target_tokens)
 

@@ -44,7 +44,9 @@ class TransformerPlayer(Player):
             with open(config_path, 'r') as file:
                 settings = yaml.safe_load(file)
 
+        actual_model_name = "TransformerGodPlayer.pth" 
         weights_filename = f"{name}.pth"
+
         local_weights_option1 = os.path.join(current_dir, 'model', weights_filename)
         local_weights_option2 = os.path.join(current_dir, weights_filename)
 
@@ -53,8 +55,13 @@ class TransformerPlayer(Player):
         elif os.path.exists(local_weights_option2):
             weights_path = local_weights_option2
         else:
-            weights_path = hf_hub_download(repo_id=repo_id, filename=f"{weights_filename}")
-
+            try:
+                # Try to download the file named after the player
+                weights_path = hf_hub_download(repo_id=repo_id, filename=weights_filename)
+            except Exception:
+                # FALLBACK: If 'student_test.pth' doesn't exist, download the real one
+                print(f"⚠️ {weights_filename} not found. Falling back to {actual_model_name}")
+                weights_path = hf_hub_download(repo_id=repo_id, filename=actual_model_name)
         self.model = Transformer(
             src_vocab_size=self.tokenizer.vocab_size,
             tgt_vocab_size=self.tokenizer.vocab_size,

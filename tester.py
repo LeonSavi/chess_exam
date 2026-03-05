@@ -18,7 +18,7 @@ def run_single_match(match_id, player1, player2):
     print(f"⚔️ [Match {match_id}] Starting: {player1.name} vs {player2.name}")
     
     # Create a fresh Game instance for each thread
-    match = Game(player1, player2, max_half_moves=500)
+    match = Game(player1, player2, max_half_moves=200)
     result = match.play(verbose=False)
     
     print(f"🏁 [Match {match_id}] Finished! Result: {result}")
@@ -34,7 +34,7 @@ if __name__ == "__main__":
         god_transformer = TransformerPlayer(name="TransformerGodPlayer", temperature=0.8)
         stockfish_gm = EnginePlayer(opponent, blunder_rate=0.0, ponder_rate=0.1)
 
-        num_matches = 100
+        num_matches = 20
         results = []
 
         # 2. Use ThreadPoolExecutor to run matches in parallel

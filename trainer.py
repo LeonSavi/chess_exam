@@ -30,7 +30,7 @@ SAVE_BASE_PATH = os.path.join(MODEL_DIR, 'TransformerGodPlayerBase.pth')
 SAVE_PATH = os.path.join(MODEL_DIR, "TransformerGodPlayer.pth")
 OPTUNA_PATH = "opt-configs.yml"
 
-EPOCHS = 30
+EPOCHS = 25
 SEED = 1
 
 SHARE = 1.0
@@ -162,9 +162,9 @@ def train_base_model():
         
         print(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-    torch.save(model.state_dict(), SAVE_PATH)
+    torch.save(model.state_dict(), SAVE_BASE_PATH)
     pd.DataFrame(losses).to_csv('training_losses_base.csv')
-    print(f"Trained Model: {SAVE_PATH}")
+    print(f"Trained Model: {SAVE_BASE_PATH}")
 
 
 def fine_tune_model():
@@ -176,7 +176,7 @@ def fine_tune_model():
         config = yaml.safe_load(file)
 
     tokenizer = ChessTokenizer()
-    dataset = ChessDataset(hf_data=check_dataset, tokenizer=tokenizer)
+    dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv",hf_data=check_dataset, tokenizer=tokenizer,sample_frac=0.2)
     
     train_size = int(0.9 * len(dataset))
     val_size = len(dataset) - train_size
@@ -196,7 +196,7 @@ def fine_tune_model():
         dropout=config['dropout']
     ).to(device)
 
-    model.load_state_dict(torch.load(SAVE_PATH, map_location=device))
+    model.load_state_dict(torch.load(SAVE_BASE_PATH, map_location=device))
 
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     
@@ -255,7 +255,7 @@ def fine_tune_model():
         
         print(f"Fine-Tune Epoch {epoch+1}/{FT_EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-    torch.save(model.state_dict(), SAVE_BASE_PATH)
+    torch.save(model.state_dict(), SAVE_PATH)
     pd.DataFrame(losses).to_csv('training_losses_finetuned.csv')
     print(f"Fine-Tuned Model Saved: {SAVE_PATH}")
 

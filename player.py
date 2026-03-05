@@ -47,8 +47,8 @@ class TransformerPlayer(Player):
         actual_model_name = "TransformerGodPlayer.pth" 
         weights_filename = f"{name}.pth"
 
-        local_weights_option1 = os.path.join(current_dir, 'model', weights_filename)
-        local_weights_option2 = os.path.join(current_dir, weights_filename)
+        local_weights_option1 = os.path.join(current_dir, 'model', actual_model_name)
+        local_weights_option2 = os.path.join(current_dir, actual_model_name)
 
         if os.path.exists(local_weights_option1):
             weights_path = local_weights_option1
@@ -59,8 +59,7 @@ class TransformerPlayer(Player):
                 # Try to download the file named after the player
                 weights_path = hf_hub_download(repo_id=repo_id, filename=weights_filename)
             except Exception:
-                # FALLBACK: If 'student_test.pth' doesn't exist, download the real one
-                print(f"⚠️ {weights_filename} not found. Falling back to {actual_model_name}")
+                print('downloading from HF')
                 weights_path = hf_hub_download(repo_id=repo_id, filename=actual_model_name)
         self.model = Transformer(
             src_vocab_size=self.tokenizer.vocab_size,

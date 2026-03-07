@@ -17,7 +17,12 @@ class ChessDataset(Dataset):
         self.ref_col = ['fen_before','move']
         
         if csv_file:
-            self.data = pd.read_csv(csv_file)
+
+            data1 = pd.read_csv(csv_file)
+            data2 = pd.read_csv('data/chess_moves_weak.csv')
+            self.data = pd.concat([data1,data2],
+                        ignore_index=True
+                        ).reset_index(drop=True)
 
             players = ['Stockfish-GM','Stockfish-Strong']
 

@@ -19,6 +19,8 @@ from huggingface_hub import HfApi, login
 
 from api import HF_TOKEN
 
+from datetime import datetime
+
 
 REPO_ID = 'LeoSavi/Chess-God-Transformer'
 
@@ -30,53 +32,77 @@ SAVE_BASE_PATH = os.path.join(MODEL_DIR, 'TransformerGodPlayerBase.pth')
 SAVE_PATH = os.path.join(MODEL_DIR, "TransformerGodPlayer.pth")
 OPTUNA_PATH = "opt-configs.yml"
 
-EPOCHS = 25
+EPOCHS = 35
 SEED = 1
 
 SHARE = 1.0
 
+LOAD_DATA = False
+
+col_2_keep = ['fen_before','move']
+
 os.makedirs(MODEL_DIR, exist_ok=True)
 
 # for data integration
-print('Downloading Data')
-pre_tactics_dataset = pd.DataFrame(load_dataset("ssingh22/chess-evaluations", "tactics"
-                               )['train'])
+if LOAD_DATA:
+    print('Downloading Data')
+    pre_tactics_dataset = pd.DataFrame(load_dataset("ssingh22/chess-evaluations", "tactics"
+                                )['train']).rename(columns={'FEN':'fen_before','Move':'move'})
 
-pre_tactics_dataset['eval_num'] = pre_tactics_dataset['Evaluation'].apply(parse_eval)
+    pre_tactics_dataset['eval_num'] = pre_tactics_dataset['Evaluation'].apply(parse_eval)
 
-white = pre_tactics_dataset[(pre_tactics_dataset['eval_num']>0) & (pre_tactics_dataset['eval_num']<2000)].copy()
-black = pre_tactics_dataset[(pre_tactics_dataset['eval_num']<0) & (pre_tactics_dataset['eval_num']>-2000)].copy()
+    white = pre_tactics_dataset[(pre_tactics_dataset['eval_num']>0) & (pre_tactics_dataset['eval_num']<2000)].copy()
+    black = pre_tactics_dataset[(pre_tactics_dataset['eval_num']<0) & (pre_tactics_dataset['eval_num']>-2000)].copy()
 
-white_check = pre_tactics_dataset[(pre_tactics_dataset['eval_num']>=2000)].copy()
-black_check = pre_tactics_dataset[(pre_tactics_dataset['eval_num']<=-2000)].copy()
+    white_check = pre_tactics_dataset[(pre_tactics_dataset['eval_num']>=2000)].copy()
+    black_check = pre_tactics_dataset[(pre_tactics_dataset['eval_num']<=-2000)].copy()
 
-target = int(min(len(white)*SHARE,len(black)*SHARE))
+    target = int(min(len(white)*SHARE,len(black)*SHARE))
 
-white,black = white.sample(n=target,random_state=SEED),black.sample(n=target,random_state=SEED)
+    white,black = white.sample(n=target,random_state=SEED),black.sample(n=target,random_state=SEED)
 
-tactics_dataset =  pd.concat([white,black],ignore_index=True
-                             ).reset_index(drop=True).dropna(subset=['FEN','Move']
-                             ).rename(columns={'FEN':'fen_before','Move':'move'})
+    tactics_dataset =  pd.concat([white[col_2_keep],black[col_2_keep]],ignore_index=True
+                                ).reset_index(drop=True).dropna(
+                                    subset=['fen_before','move']
+                                )
 
-hf_dataset = pd.DataFrame(load_dataset("bonna46/Chess-FEN-and-NL-Format-30K-Dataset"
-                                       )['train']).rename(columns={'FEN':'fen_before','Next move':'move'})
+    hf_dataset = pd.DataFrame(load_dataset("bonna46/Chess-FEN-and-NL-Format-30K-Dataset"
+                                        )['train']).rename(columns={'FEN':'fen_before','Next move':'move'})
 
-hf_data = pd.concat([tactics_dataset,hf_dataset],axis=0,ignore_index=True).reset_index(drop=True)
+    hf_data = pd.concat([tactics_dataset,hf_dataset[col_2_keep]],axis=0,ignore_index=True).reset_index(drop=True)
 
-# for fine-tuning: keeping a small portion of old data to avoid forgetting
+    # for fine-tuning: keeping a small portion of old data to avoid forgetting
 
-small_white,small_black,small_hf = (
-    white.sample(frac=0.01,random_state=SEED),
-    black.sample(frac=0.01,random_state=SEED),
-    hf_dataset.sample(frac=0.5,random_state=SEED) 
-)
-check_dataset =  pd.concat([white_check,black_check,small_white,small_black],ignore_index=True).reset_index(drop=True).rename(
-    columns={'FEN':'fen_before','Move':'move'})
+    check_dataset =  pd.concat([white_check[col_2_keep],black_check[col_2_keep]],
+                            ignore_index=True).reset_index(drop=True).rename(
+                                columns={'FEN':'fen_before','Move':'move'})
 
-check_dataset = pd.concat([check_dataset,small_hf],ignore_index=True).reset_index(drop=True)
+    lychess_dataset = pd.read_csv(
+                            'data/lichess_puzzles_unpacked.csv'
+                            )
+
+    check_dataset = pd.concat([lychess_dataset,check_dataset],
+                            ignore_index=True).drop_duplicates().reset_index(drop=True)
+
+    buffer_target = int(len(check_dataset) * 0.18 / (1 - 0.18)) 
+    print(f'buffer target: {buffer_target}')
+    finetuning_len_tactics = int((buffer_target - len(hf_dataset)) / 2)
+
+    finetuning_df = pd.concat([
+        check_dataset,
+        hf_dataset,
+        white.sample(n=finetuning_len_tactics,random_state=SEED),
+        black.sample(n=finetuning_len_tactics,random_state=SEED),
+        ]
+        ,ignore_index=True).sample( # quick shuffle
+            frac=1, random_state=SEED).reset_index(drop=True) 
+
+    print(f'finetuning-data: {len(finetuning_df)}')
+
+
 
 def train_base_model():
-    print('--- Starting Base Model Training (with AMP Speed Boost) ---')
+    print(f'--- Starting Base Model Training (time: {datetime.now().strftime("%H:%M:%S")})---')
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     losses = {'EPOCH': [], 'training_loss':[],'validation_loss':[]}
@@ -112,7 +138,14 @@ def train_base_model():
     criterion = nn.CrossEntropyLoss(ignore_index=0)
     optimizer = optim.Adam(model.parameters(), lr=config['lr'])
     
-    scaler = GradScaler('cuda') 
+    scaler = GradScaler('cuda')
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(
+                optimizer,
+                T_max=EPOCHS,
+                eta_min=0.00005)
+            
+    best_val_loss = float('inf') # set this high
+    patience = 0
     
     for epoch in range(EPOCHS):
         model.train()
@@ -132,6 +165,9 @@ def train_base_model():
                 loss = criterion(output.reshape(-1, output.size(-1)), tgt_expected.reshape(-1))
             
             scaler.scale(loss).backward()
+
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
             
             scaler.step(optimizer)
             scaler.update()
@@ -152,6 +188,8 @@ def train_base_model():
                     loss = criterion(output.reshape(-1, output.size(-1)), tgt_expected.reshape(-1))
                 
                 total_val_loss += loss.item()
+        
+        scheduler.step()
 
         avg_train_loss = total_train_loss / len(train_loader)
         avg_val_loss = total_val_loss / len(val_loader)
@@ -160,9 +198,19 @@ def train_base_model():
         losses['training_loss'].append(avg_train_loss)
         losses['validation_loss'].append(avg_val_loss)
         
-        print(f"Epoch {epoch+1}/{EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        print(f"(time: {datetime.now().strftime("%H:%M:%S")}) Epoch {epoch+1}/{EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-    torch.save(model.state_dict(), SAVE_BASE_PATH)
+        if avg_val_loss < best_val_loss - 0.002:
+            best_val_loss = avg_val_loss
+            patience = 0
+            torch.save(model.state_dict(), SAVE_BASE_PATH)  # save best achieved model
+        else:
+            patience += 1
+            if patience >= 3:
+                print('Early stopping — no improvement for 3 epochs')
+                break
+
+    # torch.save(model.state_dict(), SAVE_BASE_PATH)
     pd.DataFrame(losses).to_csv('training_losses_base.csv')
     print(f"Trained Model: {SAVE_BASE_PATH}")
 
@@ -176,9 +224,10 @@ def fine_tune_model():
         config = yaml.safe_load(file)
 
     tokenizer = ChessTokenizer()
-    dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv",hf_data=check_dataset, tokenizer=tokenizer,sample_frac=0.2)
+    dataset = ChessDataset(f"{DATA_ROOT}/chess_moves.csv",hf_data=finetuning_df, tokenizer=tokenizer,sample_frac=0.20)
     
     train_size = int(0.9 * len(dataset))
+    print(f'training on {train_size}')
     val_size = len(dataset) - train_size
     train_data, val_data = random_split(dataset, [train_size, val_size])
     
@@ -203,9 +252,22 @@ def fine_tune_model():
     fine_tune_lr = config['lr'] * 0.1
     optimizer = optim.Adam(model.parameters(), lr=fine_tune_lr)
     
-    scaler = GradScaler()
+    scaler = GradScaler('cuda')
     acc_steps = 4 
-    FT_EPOCHS = 4 
+
+    FT_EPOCHS = 3
+    patience = 0
+    best_val_loss=float('inf')
+
+    # Freeze first 3 layers of the encoder and decoder
+    for i, layer in enumerate(model.encoder_layers):
+        if i < 3:
+            for param in layer.parameters():
+                param.requires_grad = False
+    for i, layer in enumerate(model.decoder_layers):
+        if i < 3:
+            for param in layer.parameters():
+                param.requires_grad = False
     
     for epoch in range(FT_EPOCHS):
         model.train()
@@ -227,6 +289,9 @@ def fine_tune_model():
             scaler.scale(loss).backward()
 
             if (i + 1) % acc_steps == 0:
+
+                scaler.unscale_(optimizer)
+                torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
                 scaler.step(optimizer)
                 scaler.update()
                 optimizer.zero_grad()
@@ -253,9 +318,18 @@ def fine_tune_model():
         losses['training_loss'].append(avg_train_loss)
         losses['validation_loss'].append(avg_val_loss)
         
-        print(f"Fine-Tune Epoch {epoch+1}/{FT_EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
+        print(f"(time: {datetime.now().strftime("%H:%M:%S")}) Fine-Tune Epoch {epoch+1}/{FT_EPOCHS} | Train Loss: {avg_train_loss:.4f} | Val Loss: {avg_val_loss:.4f}")
 
-    torch.save(model.state_dict(), SAVE_PATH)
+        if avg_val_loss < best_val_loss - 0.003:
+            best_val_loss = avg_val_loss
+            patience = 0
+            torch.save(model.state_dict(), SAVE_PATH)  # save best achieved model
+        else:
+            patience += 1
+            if patience >= 2:
+                print('Early stopping — no improvement for 2 epochs')
+                break
+
     pd.DataFrame(losses).to_csv('training_losses_finetuned.csv')
     print(f"Fine-Tuned Model Saved: {SAVE_PATH}")
 
@@ -280,9 +354,23 @@ def load_to_hf():
         commit_message="Update Hypers"
     )
 
+    api.upload_file(
+        path_or_fileobj="README.md",      # path to your local README
+        path_in_repo="README.md",          # where it goes on HuggingFace
+        repo_id=REPO_ID,
+        commit_message="Update README"
+    )
+
+    api.upload_file(
+        path_or_fileobj="charts/training_curves.png",
+        path_in_repo="charts/training_curves.png",
+        repo_id=REPO_ID,
+        commit_message="Add training curves chart"
+    )
+
 if __name__ == "__main__":
     print('base model training')
-    train_base_model()
+    # train_base_model()
     print('fine tuning')
-    fine_tune_model()
+    # fine_tune_model()
     load_to_hf()

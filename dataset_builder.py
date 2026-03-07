@@ -12,37 +12,42 @@ from chess_tournament.players import EnginePlayer, RandomPlayer
 from api import RAPID_API
 
 ROOT = 'data'
-max_concurrent_games = 100
+max_concurrent_games = 19
 num_games_total = 1000
 
 os.makedirs(ROOT, exist_ok=True)
 
-csv_filepath = os.path.join(ROOT, "chess_moves.csv")
+csv_filepath = os.path.join(ROOT, "chess_moves_weak.csv")
 lock = threading.Lock() 
 
 if "RAPIDAPI_KEY" not in os.environ:
     os.environ["RAPIDAPI_KEY"] = RAPID_API
 
 good_players = [
-    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.6),
-    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.8)
+    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.9),
+    EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.9)
     ]
 
 pool_of_players = [
-    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.2),
+    EnginePlayer("Stockfish-GM", blunder_rate=0.0, ponder_rate=0.5),
     EnginePlayer("Stockfish-Strong", blunder_rate=0.0, ponder_rate=0.3),
+    EnginePlayer("Stockfish-Mid", blunder_rate=0.0, ponder_rate=0.9),
 
-    EnginePlayer("Stockfish-GM", blunder_rate=0.01, ponder_rate=0.15),
-    EnginePlayer("Stockfish-Strong", blunder_rate=0.05, ponder_rate=0.2),
+    EnginePlayer("Stockfish-GM", blunder_rate=0.3, ponder_rate=0.5),
+    EnginePlayer("Stockfish-Strong", blunder_rate=0.35, ponder_rate=0.5),
+    EnginePlayer("Stockfish-Mid", blunder_rate=0.4, ponder_rate=0.5),
 
-    EnginePlayer("Stockfish-Mid", blunder_rate=0.1, ponder_rate=0.3),
-    EnginePlayer("Stockfish-Weak", blunder_rate=0.15, ponder_rate=0.4),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.0, ponder_rate=0.4),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.1, ponder_rate=0.5),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.15, ponder_rate=0.6),
 
-    EnginePlayer("Stockfish-Mid", blunder_rate=0.15, ponder_rate=0.4),
-    EnginePlayer("Stockfish-Weak", blunder_rate=0.3, ponder_rate=0.7),
-
-    EnginePlayer("Stockfish-Mid", blunder_rate=0.0, ponder_rate=0.1),
-    EnginePlayer("Stockfish-Weak", blunder_rate=0.0, ponder_rate=0.1)
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.20, ponder_rate=0.2),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.4, ponder_rate=0.0),  
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.5, ponder_rate=0.0), 
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.6, ponder_rate=0.0),
+    EnginePlayer("Stockfish-Weak", blunder_rate=0.7, ponder_rate=0.0), 
+    RandomPlayer('stupid1'),
+    RandomPlayer('stupid2')
     ]
 
 
@@ -62,7 +67,7 @@ def play_single_game(game_id, num_games_total):
     else:
         w,b = opponent,main_player
         
-    game = Game(w, b, max_half_moves=700)
+    game = Game(w, b, max_half_moves=200)
 
     game.play(
         verbose=False, 

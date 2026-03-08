@@ -13,7 +13,7 @@ import os
 
 import concurrent.futures
 
-NUM_MATCHES = 10
+NUM_MATCHES = 100
 
 def run_single_match(match_id, player1, player2):
     """Function to run one game instance"""
@@ -31,7 +31,7 @@ if __name__ == "__main__":
         os.environ["RAPIDAPI_KEY"] = RAPID_API
 
     opponents = ['stockfish-weak', 'stockfish-mid', 'stockfish-strong', 'stockfish-gm']
-    temperatures = [0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
+    temperatures = [0.65,0.675]
     # Store results per temperature
     temp_results = {t: [] for t in temperatures}
 

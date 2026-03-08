@@ -368,9 +368,23 @@ def load_to_hf():
         commit_message="Add training curves chart"
     )
 
+    api.upload_file(
+        path_or_fileobj="charts/6_wdl_100pct.png",
+        path_in_repo="charts/6_wdl_100pct.png",
+        repo_id=REPO_ID,
+        commit_message="Add KDA chart"
+    )
+
+    api.upload_file(
+        path_or_fileobj="charts/temp_comparison_table.png",
+        path_in_repo="charts/temp_comparison_table.png",
+        repo_id=REPO_ID,
+        commit_message="Comparison Table"
+    )
+
 if __name__ == "__main__":
     print('base model training')
-    # train_base_model()
+    train_base_model()
     print('fine tuning')
-    # fine_tune_model()
+    fine_tune_model()
     load_to_hf()

@@ -29,7 +29,7 @@ Initially I used Optuna for fine tuning the hyperparameters. I run 70 trials wit
 1. CrossEntropyLoss
 2. CrossEntropyLoss Gap between Training Set and Validation Set. This a way to minimize overfitting.
 
-**NOTE**: due to vram limitation of my GPU (rtx4060 laptop - 8gb) I manually set hyperparameters and made ad-hoc changes to the architecture.
+**NOTE**: due to vram limitation of my GPU, I manually set hyperparameters and made ad-hoc changes to the architecture.
 
 ```yml
 d_model: 256      
@@ -41,36 +41,56 @@ lr: 0.0003
 batch_size: 64
 ```
 
+I chose these parameters because they represent the best balance between model capacity and the VRAM constraints of an RTX 4060 laptop (8GB).
+
+- d_model: 256 - embedding dimension large enough to capture complex positional relationships in FEN notation without exceeding memory limits.
+- num_heads: 8 - follows the standard ratio of d_model / num_heads = 32 dimensions per head, as recommended in the original "Attention is All You Need" paper. Each head learns to attend to different aspects of the position simultaneously.
+- num_layers: 6 - upgraded from 5 layers in earlier experiments. The additional layer added ~1.84M parameters and improved validation loss by 11% (0.2644 -> 0.2352) at the cost of roughly 15% longer training time per epoch.
+- d_ff: 1024 - the feedforward dimension follows the standard 4*d_model ratio, providing sufficient non-linear capacity between attention layers.
+- dropout: 0.1 - light regularization. The train/validation gap remained consistently below 0.025 throughout training, confirming the model was not overfitting and did not require stronger regularization.
+- lr: 0.0003 - validated through Optuna search in earlier experiments. During finetuning we drop this parameter to 0.00003.
+- batch_size: 64 - chosen for VRAM stability. Although the actual batch size is 256 because of gradient Accumulation.
+
+The total parameter count is **11,086,884**.
+
 ## Training & Optimizations
 Given VRAM issues I tweaked the training and the architecture of the model as follow: 
 - Mixed Precision Training: Training uses torch.amp.autocast with GradScaler to perform forward passes in float16 while keeping optimizer states in float32. This roughly halves VRAM usage and speeds up training. The attention mask was adjusted from -1e9 to -1e4 to prevent float16 overflow during masked attention computation.
 - Gradient Clipping: torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0) is applied after every backward pass to prevent exploding gradients, which is especially important when combined with Mixed Precision Training.
-- Gradient Accumulation: During fine-tuning, gradients are accumulated over 4 steps before each optimizer update, giving an effective batch size of 512 (batch_size=64x acc_steps=4) without requiring additional VRAM.
+- Gradient Accumulation: During fine-tuning, gradients are accumulated over 4 steps before each optimizer update, giving an effective batch size of 256 (batch_size=64* acc_steps=4) without requiring additional VRAM.
 - Cosine Annealing LR Scheduler: The learning rate decays from the initial value down to eta_min=0.00005 following a cosine curve over the full training run, allowing the model to make large updates early and smaller adjustments later.
 - Early Stopping: Training monitors validation loss with a patience of 3 epochs and a minimum improvement delta of 0.002. The best checkpoint is saved automatically, ensuring the final model reflects peak generalization rather than the last epoch.
-- Encoder layers 0–2 and decoder layers 0–2 were frozen during fine-tuning to preserve learned general chess representations
+- Encoder layers 0–2 and decoder layers 0–2 were frozen during fine-tuning to preserve learned general chess representations.
 
 ![Training Curves](charts/training_curves.png)
 
 ### Data 
 
-- Base training: ~2.3M positions combining the ssingh22/chess-evaluations tactics dataset and bonna46/Chess-FEN-and-NL-Format-30K-Dataset
-- Fine-tuning: ~1.2mln positions combining checkmate positions (eval ≥ 2000), high-quality Lichess puzzles filtered by popularity ≥ 90, NbPlays ≥ 3000, and rating 300–2200, plus a ~15% general data buffer to prevent forgetting (all data from bonna46 and self generated data)
+- Base training: ~2.3mln positions combining the `ssingh22/chess-evaluations` tactics dataset and `bonna46/Chess-FEN-and-NL-Format-30K-Dataset`
+- Fine-tuning: ~1.2mln positions combining checkmate positions (eval ≥ 2000), high-quality Lichess puzzles filtered by popularity ≥ 90, NbPlays ≥ 3000, and rating 300–2200, plus a ~15% general data buffer to prevent forgetting (all data from bonna46, self generated data, and tactics)
 
 ### Notes
-The default Temperature after running 100 matches vs every stockfish-model. Codes are in `tester.py`.
-![Winrate per opponent](charts/1_winrate_per_opponent.png)
+The default Temperature after running 100 matches vs every stockfish-model (weak,mid,strong,GM). I calculated win-rate as 1pt. for Win, 0.5 draw and -1 for a loss. Codes are in `tester.py`. I decided that 0.65 is the optimal default temperature for winrate consistency across different runs and opponents. Below the last run I tried.
+![Winrate per opponent](charts/temp_comparison_table.png)
+![KDA per temperature](charts/6_wdl_100pct.png)
+
 
 the model **TransformerGodPlayer.pth** is saved in model folder and uploaded in HuggingFace along with **opt-configs.yml**. 
 
-# Requirements
+## Requirements
 Libraries used are described in `requirements.txt`. If you want to install them in bulk you can run the following command once cd into the directory:
 ```bash 
 pip install -r requirements.txt
 ```
 
 ## How to Use
-The model automatically imports a ad-hoc `ChessTokenizer` and the `Transformer` class to load the `.pth` weights, first attemps to load those locally (since the GitHub repo is going to be cloned), otherwise import from HuggingFace.
+
+This model is ment to be used with the `TransformerPlayer` class in `player.py` after cloning the original repo.
+```bash
+git clone https://github.com/LeonSavi/chess_exam
+```
+
+For the purpose of the class tournment, the model automatically imports a ad-hoc `ChessTokenizer` and the `Transformer` class to load the `.pth` weights, first attemps to load those locally (since the GitHub repo is going to be cloned), otherwise import from HuggingFace.
 
 ```python
 from player import TransformerPlayer
@@ -81,7 +101,6 @@ fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
 move = model.get_move(fen) 
 print(f"God-Transformer predicts: {move}")
 ```
-
 
 **Fallback**
 As a probabilistic model, the Transformer occasionally predicts illegal moves. particularly in unusual positions that differ from the training distribution. A python-chess validation layer is applied inside get_move() to catch these cases before they reach the game engine. The fallback strategy works in three stages:
@@ -96,4 +115,5 @@ As a probabilistic model, the Transformer occasionally predicts illegal moves. p
 - Mixed Precision: https://apxml.com/courses/foundations-transformers-architecture/chapter-7-implementation-details-optimization/mixed-precision-training
 - Freezing Layers: https://medium.com/we-talk-data/guide-to-freezing-layers-in-pytorch-best-practices-and-practical-examples-8e644e7a9598
 - Gradient Clipping: https://www.geeksforgeeks.org/deep-learning/understanding-gradient-clipping/
+- Our lectures
 

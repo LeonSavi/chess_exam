@@ -22,10 +22,10 @@ from scripts.architecture import Transformer
 
 class TransformerPlayer(Player):
     def __init__(self,
-                 name:str,
+                 name:str = 'TransformerGodPlayer',
                  model_id:str="TransformerGodPlayer",
                  repo_id:str="LeoSavi/Chess-God-Transformer",
-                 temperature:float = 0.8): 
+                 temperature:float = 0.65): 
 
         super().__init__(name)
 
@@ -45,7 +45,7 @@ class TransformerPlayer(Player):
             with open(config_path, 'r') as file:
                 settings = yaml.safe_load(file)
 
-        actual_model_name = "TransformerGodPlayer.pth" 
+        actual_model_name = f"{model_id}.pth" 
         weights_filename = f"{model_id}.pth"
 
         local_weights_option1 = os.path.join(current_dir, 'model', actual_model_name)
@@ -133,8 +133,11 @@ class TransformerPlayer(Player):
 
         # rise temperature and try to get an answer if illegal
         for n in range(4):
+
             temp = min(self.temperature + n*0.05, 0.85) # warm up
+
             predicted_move = self.generate_move(src_tensor,temp)
+
             try:
                 move = chess.Move.from_uci(predicted_move)
                 if move in board.legal_moves:

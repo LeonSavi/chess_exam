@@ -75,7 +75,8 @@ The default Temperature after running 100 matches vs every stockfish-model (weak
 ![KDA per temperature](charts/6_wdl_100pct.png)
 
 
-the model **TransformerGodPlayer.pth** is saved in model folder and uploaded in HuggingFace along with **opt-configs.yml**. 
+The training of the base model took about 9h30min, i.e. 20min per epoch * 28 epochs (because of early stopping). While finetuning about 30 min. 
+the model **TransformerGodPlayer.pth** is saved in model folder and uploaded in HuggingFace along with the hyperparameters **opt-configs.yml**. 
 
 ## Requirements
 Libraries used are described in `requirements.txt`. If you want to install them in bulk you can run the following command once cd into the directory:

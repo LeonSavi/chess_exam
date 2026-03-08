@@ -383,8 +383,9 @@ def load_to_hf():
     )
 
 if __name__ == "__main__":
-    print('base model training')
-    train_base_model()
-    print('fine tuning')
-    fine_tune_model()
+    if LOAD_DATA:
+        print('base model training')
+        train_base_model()
+        print('fine tuning')
+        fine_tune_model()
     load_to_hf()
